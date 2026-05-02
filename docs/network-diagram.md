@@ -1,43 +1,22 @@
 # ProxLab Network Diagram
 
-## Physical topology
-
-```
-Internet
-    │
-    ▼
-[MikroTik CHR 7.22.2]  <admin-net>.1  ← AZNET default gateway
-    │  AZNET <admin-net>.0/23
-    ├── Pi-hole          <admin-net>.21
-    ├── claude-agent     <admin-net>.27   (LXC on <file-server> — build host)
-    ├── <file-server>          <admin-net>.200  (Proxmox node — file server / Transmission)
-    │     └─ ctTransmission LXC  <admin-net>.17  (Transmission torrent client)
-    └── <proxmox-host>          <admin-net>.222  (Proxmox node — ProxLab host)
-          └─ vmbr1 (VLAN-aware bridge) ─────────────────────────────────┐
-                                                                         │
-
-⚠️  <file-server> connects to MikroTik via wireless repeater.
-    Only the host NIC MAC (<mac-addr>) is registered.
-```
+All VMs run on a single Proxmox host connected to your management network via `vmbr0`. Lab traffic is isolated on `vmbr1` (VLAN-aware bridge) — no lab subnet has direct internet access.
 
 ---
 
-## ProxLab — <proxmox-host> internal network
+## ProxLab internal topology
 
 ```mermaid
 graph TD
     Internet((Internet))
-    MK["MikroTik CHR\n<admin-net>.1"]
-    AZNET["AZNET <admin-net>.0/23\n(home/management network)"]
+    MK["MikroTik CHR — RT-01\nVM 22211 on vmbr1\nInter-VLAN router\nGateway for all lab VLANs"]
+    AZNET["Management Network\nvmbr0 — your LAN\n(access to Proxmox UI + claude-lxc)"]
 
-    Internet --> MK
-    MK --> AZNET
+    Internet --> AZNET
+    AZNET --> MK
 
-    subgraph <proxmox-host>["<proxmox-host> — Proxmox VE 9.1.1 | <admin-net>.222"]
-        CL["CT 22202 — claude-lxc\neth0: 10.10.0.50 (lab)\neth1: <admin-net>.100 (mgmt)"]
-
-        subgraph V0["VLAN native — 10.0.0.0/24 — Proxmox mgmt"]
-        end
+    subgraph <proxmox-host>["Proxmox Host — vmbr1 (VLAN-aware bridge)"]
+        CL["CT 22202 — claude-lxc\neth0: 10.10.0.50 (lab)\neth1: management NIC"]
 
         subgraph V100["VLAN 100 — 10.10.1.0/24 — Core Identity"]
             DC01["22203 DC-01\nWS2022 · AD DS · DNS · DHCP\n10.10.1.10"]
@@ -68,49 +47,52 @@ graph TD
         end
     end
 
-    AZNET --> <proxmox-host>
-    CL -->|"mgmt"| AZNET
+    MK --> V100
+    MK --> V200
+    MK --> V300
+    MK -.->|"no default route\nisolated"| V400
+
     CL -->|"WinRM/SSH/Ansible"| V100
     CL -->|"WinRM/SSH/Ansible"| V200
     CL -->|"WinRM/SSH/Ansible"| V300
     CL -->|"nmap scan only"| V400
-    ATK01 -->|"allowed"| V400
+    ATK01 -->|"only allowed VM"| V400
 ```
 
 ---
 
-## VLAN routing (MikroTik RT-01, VM 22211)
+## VLAN routing (RT-01, VM 22211)
 
 | VLAN | Subnet | Gateway | Purpose |
 |---|---|---|---|
-| native | 10.0.0.0/24 | — | Proxmox host mgmt |
+| native | 10.0.0.0/24 | — | Proxmox host management |
 | 100 | 10.10.1.0/24 | 10.10.1.1 | Core Identity |
 | 200 | 10.10.2.0/24 | 10.10.2.1 | Server Workloads |
 | 300 | 10.10.3.0/24 | 10.10.3.1 | Endpoints |
-| 400 | 10.10.4.0/24 | 10.10.4.1 | DMZ — no route to other VLANs |
+| 400 | 10.10.4.0/24 | 10.10.4.1 | DMZ — isolated |
 
-**Firewall rules:**
-- All VLANs can reach VLAN 100 (DNS/AD)
+**Firewall rules (on RT-01):**
+- All VLANs can reach VLAN 100 (AD/DNS)
 - VLAN 400 is fully isolated — inbound only from ATK-01 (10.10.3.30)
-- No VLAN has direct internet access (lab is offline by design)
+- No VLAN has direct internet access (lab is air-gapped by design)
 
 ---
 
-## AZNET management IPs (ProxLab reserved range: .100–.199)
+## Management access (per VM)
 
-| Host | AZNET IP |
-|---|---|
-| claude-lxc | <admin-net>.100 |
-| DC-01 (temp) | <admin-net>.101 |
-| FS-01 (temp) | <admin-net>.102 |
-| APP-01 (temp) | <admin-net>.103 |
-| SQL-01 (temp) | <admin-net>.104 |
-| WSUS-01 (temp) | <admin-net>.105 |
-| WS-01 (temp) | <admin-net>.106 |
-| WS-02 (temp) | <admin-net>.107 |
-| WS-03 (temp) | <admin-net>.108 |
-| LX-01 (temp) | <admin-net>.109 |
-| LX-02 (temp) | <admin-net>.110 |
-| ATK-01 (temp) | <admin-net>.111 |
+Each Windows/Linux VM gets a second NIC on `vmbr0` (your management network) during the build phase. This is used for RDP/SSH access before the lab is fully operational. These NICs are removed once claude-lxc is the sole management path.
 
-"temp" = remove these NICs after lab is fully built and claude-lxc is the sole management path.
+| Host | Lab IP | Management NIC |
+|---|---|---|
+| claude-lxc | 10.10.0.50 | `<mgmt-net>.100` |
+| DC-01 | 10.10.1.10 | `<mgmt-net>.101` (temp) |
+| FS-01 | 10.10.2.10 | `<mgmt-net>.102` (temp) |
+| APP-01 | 10.10.2.11 | `<mgmt-net>.103` (temp) |
+| SQL-01 | 10.10.2.12 | `<mgmt-net>.104` (temp) |
+| WSUS-01 | 10.10.2.13 | `<mgmt-net>.105` (temp) |
+| WS-01 | 10.10.3.10 | `<mgmt-net>.106` (temp) |
+| WS-02 | 10.10.3.11 | `<mgmt-net>.107` (temp) |
+| WS-03 | 10.10.3.12 | `<mgmt-net>.108` (temp) |
+| LX-01 | 10.10.3.20 | `<mgmt-net>.109` (temp) |
+| LX-02 | 10.10.3.21 | `<mgmt-net>.110` (temp) |
+| ATK-01 | 10.10.3.30 | `<mgmt-net>.111` (temp) |

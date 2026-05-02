@@ -253,7 +253,7 @@ echo 'export LANG' >> /root/.bashrc
 **Stage:** Stage 3 — claude-lxc network setup  
 **Symptom:**
 
-After running `ip addr flush dev eth1 && ip addr add <admin-net>.100/23 dev eth1`, the container loses internet access. `ip route` shows no default gateway.
+After running `ip addr flush dev eth1 && ip addr add <mgmt-ip>/23 dev eth1`, the container loses internet access. `ip route` shows no default gateway.
 
 **Root cause:**
 
@@ -265,7 +265,7 @@ Restore the default gateway manually after the flush, or (better) just restart s
 
 ```bash
 # Option 1 — manual route restore
-ip route add default via <admin-net>.1 dev eth1
+ip route add default via <mgmt-ip> dev eth1
 
 # Option 2 — let networkd re-apply everything cleanly
 systemctl restart systemd-networkd
