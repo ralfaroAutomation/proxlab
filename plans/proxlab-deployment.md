@@ -3,6 +3,8 @@
 **Started:** 2026-04-30
 **Reference:** `proxlab-context.md` for full topology, VM specs, AD domain, and operating rules
 
+> **Task tracking:** Open work items live in [GitHub Issues → lab-tasks](https://github.com/ralfaroAutomation/lab-tasks/issues). This file is a reference doc — commands, configs, and architecture context. Completed stages are preserved here as a build log.
+
 ---
 
 ## Stage 0 — Infrastructure Prep

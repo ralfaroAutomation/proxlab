@@ -2,7 +2,7 @@
 
 ## Overview
 
-ProxLab is operated by two AI agents with complementary access scopes. Neither agent is redundant — they cover different layers of the infrastructure and collaborate via shared task state in the git repo.
+ProxLab is operated by two AI agents with complementary access scopes. Neither agent is redundant — they cover different layers of the infrastructure and collaborate via shared task state in GitHub Issues.
 
 ---
 
@@ -21,38 +21,50 @@ ProxLab is operated by two AI agents with complementary access scopes. Neither a
 
 ## Communication Model
 
-The agents do not talk directly. They communicate through a dedicated task repo, kept separate from the documentation repo to avoid polluting the commit log:
+The agents do not talk directly. They communicate through GitHub Issues in the private `ralfaroAutomation/lab-tasks` repo. GH Issues is the single source of truth for pending and completed work — no MD files, no git syncs for task state.
 
 ```
-GitHub (private: ralfaroAutomation/lab-tasks)
-        ↑  push (on session end + cron 09:00/21:00)
-        |
-  /home/projects/lab-tasks/
-  ├── pending-tasks.md     ← shared task inbox
-  └── completed-tasks.md  ← shared done log
-        |
-        ↓  git pull (on session start)
-GitHub (private: ralfaroAutomation/lab-tasks)
+GitHub Issues (private: ralfaroAutomation/lab-tasks)
+              ↑ gh issue close / create / comment
+              |
+   BUILDER (claude-agent)      PROXLAB (claude-lxc)
+   label: BUILDER              label: PROXLAB
+              |                     |
+              └─────────────────────┘
+                both read/write issues
 ```
 
-Documentation and scripts stay in `ralfaroAutomation/homelab` with a clean commit history. Task sync commits go only to `lab-tasks`. Each agent pulls on start, updates task files as work is done, and pushes on end. The cron on claude-agent (`/root/sync-tasks.sh`) also syncs at 09:00 and 21:00 as a safety net.
+Each agent filters issues by its own label. Stage labels (`stage-5` … `stage-11`) sequence the work. Closed issues serve as the completed log.
 
 ---
 
 ## Task Format
 
-Every task in `pending-tasks.md` is tagged with which agent should execute it:
+Each task is a GitHub Issue in `ralfaroAutomation/lab-tasks`:
 
-```markdown
-- [ ] `[BUILDER]` ATK-01: rebuild with Kali 2026.1 ISO, static IP 10.10.3.30
-- [ ] `[PROXLAB]` Validate WinRM against FS-01 via Kerberos (pywinrm)
-```
+- **Title:** concise action — e.g. `DC-02: OOBE, domain join, promote as secondary DC`
+- **Labels:** agent label (`BUILDER` or `PROXLAB`) + stage label (`stage-5`) + topic label if relevant (`networking`, `power-management`, etc.)
+- **Body:** optional detail, commands, or acceptance criteria
 
-When complete, the item moves to `completed-tasks.md`:
+Common commands:
 
-```markdown
-- [x] `[BUILDER]` ATK-01 rebuilt — 2026-05-04
-- [x] `[PROXLAB]` WinRM validated against FS-01 — 2026-05-05
+```bash
+# List your open tasks
+gh issue list --repo ralfaroAutomation/lab-tasks --label BUILDER --state open
+
+# Close a completed task
+gh issue close <number> --repo ralfaroAutomation/lab-tasks
+
+# Create a new task
+gh issue create --repo ralfaroAutomation/lab-tasks \
+  --label BUILDER,stage-5 --title "..." --body "..."
+
+# Hand off to the other agent
+gh issue create --repo ralfaroAutomation/lab-tasks \
+  --label PROXLAB --title "..." --body "..."
+
+# Leave a blocker note
+gh issue comment <number> --repo ralfaroAutomation/lab-tasks --body "blocked: reason"
 ```
 
 ---
@@ -60,19 +72,16 @@ When complete, the item moves to `completed-tasks.md`:
 ## Session Protocol
 
 ### Every session start
-1. `git pull --ff-only origin main` — pick up any work the other agent completed
-2. Read `pending-tasks.md` — load your tagged tasks into context
-3. Note any tasks the other agent just completed in `completed-tasks.md`
+1. Open task queue is injected automatically by the startup script — no manual fetch needed
+2. Pick the lowest open stage or highest priority issue
 
 ### During session
-- Move tasks from pending → completed as they finish
-- Add new tasks discovered during work (tag them correctly)
-- Never delete a task — move it or leave it
+- Close issues as work completes: `gh issue close <number> --repo ralfaroAutomation/lab-tasks`
+- Create new issues for discovered work — tag the right agent and stage
+- Comment on an issue if blocked rather than leaving it silently open
 
 ### Every session end
-1. `git add pending-tasks.md completed-tasks.md`
-2. `git commit -m "chore: task state — <session summary>"`
-3. `git push origin main`
+No git push needed — GH Issues updates are live immediately.
 
 ---
 
@@ -89,7 +98,7 @@ When complete, the item moves to `completed-tasks.md`:
 - Ansible playbooks need to run against Linux VMs
 - SIEM alerts need reading or responding to
 
-**Escalation:** If BUILDER discovers a task that requires AD access (e.g., check if a user exists), it tags a task `[PROXLAB]` and commits. If PROXLAB needs a VM reconfigured (e.g., add a NIC), it tags a task `[BUILDER]` and commits.
+**Escalation:** If BUILDER discovers a task that requires AD access, it creates a `PROXLAB`-labeled issue. If PROXLAB needs a VM reconfigured, it creates a `BUILDER`-labeled issue.
 
 ---
 
@@ -117,7 +126,7 @@ The PROXLAB agent should mirror this pattern in `~/start-claude.sh` once claude-
 
 ### Startup context injection
 
-Before Claude starts, `start-claude2.sh` prints the top 20 pending tasks into the terminal. This seeds the session with task state without requiring Claude to read the full `pending-tasks.md` file at the cost of a tool call.
+Before Claude starts, `start-claude2.sh` runs `gh issue list` and prints the top open BUILDER tasks into the terminal. This seeds the session with task state without a tool call.
 
 ### Session rules
 
@@ -126,8 +135,7 @@ Before Claude starts, `start-claude2.sh` prints the top 20 pending tasks into th
 | `/compact` at natural breakpoints | After a stage, after large file reads, before topic switch — don't wait for pressure |
 | `/clear` between unrelated tasks | Stale context from a previous task inflates token count without value |
 | Targeted reads only (`grep`, specific line ranges) | Wide `cat` of large files is the single biggest context drain |
-| Never read `completed-tasks.md` | Hundreds of lines of done work — irrelevant to current session |
-| `grep -A 20 "## SectionName"` for pending tasks | Read only the relevant section, not the full file |
+| Use `gh issue list` for task state | Never read old MD task files — they are stale and no longer maintained |
 
 ---
 
@@ -141,4 +149,4 @@ Before PROXLAB agent is operational:
 - [ ] `/etc/krb5.conf` configured with CORP.LAB realm
 - [ ] Keytabs pulled from DC-01: `/etc/krb5/svc-claude-ro.keytab`, `svc-claude-rw.keytab`
 - [ ] SSH key from claude-lxc added to authorized_keys on all Linux VMs
-- [ ] PROXLAB CLAUDE.md created at `/home/projects/homelab/CLAUDE-proxlab.md` with lab-internal connection strings
+- [ ] PROXLAB CLAUDE.md created at `/home/projects/homelab/claude/proxlab.CLAUDE.md` with lab-internal connection strings
