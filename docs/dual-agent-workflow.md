@@ -21,21 +21,21 @@ ProxLab is operated by two AI agents with complementary access scopes. Neither a
 
 ## Communication Model
 
-The agents do not talk directly. They communicate through files in the homelab git repo:
+The agents do not talk directly. They communicate through a dedicated task repo, kept separate from the documentation repo to avoid polluting the commit log:
 
 ```
-GitHub (private: ralfaroAutomation/homelab)
+GitHub (private: ralfaroAutomation/lab-tasks)
         ↑  push (on session end + cron 09:00/21:00)
         |
-  /home/projects/homelab/
+  /home/projects/lab-tasks/
   ├── pending-tasks.md     ← shared task inbox
   └── completed-tasks.md  ← shared done log
         |
         ↓  git pull (on session start)
-GitHub (private: ralfaroAutomation/homelab)
+GitHub (private: ralfaroAutomation/lab-tasks)
 ```
 
-Each agent pulls on start, updates task files as work is done, and pushes on end. The cron on claude-agent (`/root/sync-tasks.sh`) also syncs at 09:00 and 21:00 as a safety net.
+Documentation and scripts stay in `ralfaroAutomation/homelab` with a clean commit history. Task sync commits go only to `lab-tasks`. Each agent pulls on start, updates task files as work is done, and pushes on end. The cron on claude-agent (`/root/sync-tasks.sh`) also syncs at 09:00 and 21:00 as a safety net.
 
 ---
 
