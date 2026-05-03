@@ -126,7 +126,11 @@ The PROXLAB agent should mirror this pattern in `~/start-claude.sh` once claude-
 
 ### Startup context injection
 
-Before Claude starts, `start-claude2.sh` runs `gh issue list` and prints the top open BUILDER tasks into the terminal. This seeds the session with task state without a tool call.
+`start-claude2.sh` launches Claude in a tmux session — no automatic task injection. Load task context manually at the start of each session:
+
+```bash
+gh issue list --repo ralfaroAutomation/lab-tasks --label BUILDER --state open
+```
 
 ### Session rules
 
