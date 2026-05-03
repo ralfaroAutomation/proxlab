@@ -15,7 +15,7 @@ graph TD
     Internet --> AZNET
     AZNET --> MK
 
-    subgraph <proxmox-host>["Proxmox Host — vmbr1 (VLAN-aware bridge)"]
+    subgraph pvehost["Proxmox Host — vmbr1 (VLAN-aware bridge)"]
         CL["CT 22202 — claude-lxc\neth0: 10.10.0.50 (lab)\neth1: management NIC"]
 
         subgraph V100["VLAN 100 — 10.10.1.0/24 — Core Identity"]

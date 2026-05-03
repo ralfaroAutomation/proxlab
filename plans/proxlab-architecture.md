@@ -20,7 +20,7 @@ graph TD
 
     Internet --> GW
 
-    subgraph <proxmox-host>["Proxmox Host — Lenovo S30 V1 | Xeon E5-2650L | 128 GB ECC | PVE 9.1.1\nvms-1tb (953 GB NVMe)  +  vms-512gb (476 GB NVMe)"]
+    subgraph pvehost["Proxmox Host — Lenovo S30 V1 | Xeon E5-2650L | 128 GB ECC | PVE 9.1.1\nvms-1tb (953 GB NVMe)  +  vms-512gb (476 GB NVMe)"]
 
         subgraph Templates["Templates (read-only)"]
             T1["22200 ubuntu-2404-tmpl\nUbuntu 24.04 cloud-init"]
@@ -63,7 +63,7 @@ graph TD
 
     end
 
-    GW -->|"management access"| <proxmox-host>
+    GW -->|"management access"| pvehost
 
     CL -->|"WinRM + Kerberos"| DC01
     CL -->|"WinRM + Kerberos"| FS01
