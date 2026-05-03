@@ -99,6 +99,38 @@ When complete, the item moves to `completed-tasks.md`:
 
 ---
 
+## Token Usage Optimization
+
+Long-running lab sessions are expensive on context. Both agents follow the same discipline.
+
+### headroom
+
+[headroom](https://github.com/cytostack/headroom) wraps the Claude CLI and surfaces a live token counter in the terminal status bar. It makes context pressure visible before it becomes a problem — no more waiting for a warning to compact.
+
+Wired into the BUILDER startup script:
+
+```bash
+headroom wrap /root/.local/bin/claude -- --remote-control
+```
+
+The PROXLAB agent should mirror this pattern in `~/start-claude.sh` once claude-lxc is set up.
+
+### Startup context injection
+
+Before Claude starts, `start-claude2.sh` prints the top 20 pending tasks into the terminal. This seeds the session with task state without requiring Claude to read the full `pending-tasks.md` file at the cost of a tool call.
+
+### Session rules
+
+| Rule | Why |
+|---|---|
+| `/compact` at natural breakpoints | After a stage, after large file reads, before topic switch — don't wait for pressure |
+| `/clear` between unrelated tasks | Stale context from a previous task inflates token count without value |
+| Targeted reads only (`grep`, specific line ranges) | Wide `cat` of large files is the single biggest context drain |
+| Never read `completed-tasks.md` | Hundreds of lines of done work — irrelevant to current session |
+| `grep -A 20 "## SectionName"` for pending tasks | Read only the relevant section, not the full file |
+
+---
+
 ## Setup Checklist for claude-lxc
 
 Before PROXLAB agent is operational:
