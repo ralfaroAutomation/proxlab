@@ -72,7 +72,7 @@ gh issue comment <number> --repo ralfaroAutomation/lab-tasks --body "blocked: re
 ## Session Protocol
 
 ### Every session start
-1. Open task queue is injected automatically by the startup script — no manual fetch needed
+1. `gh issue list --repo ralfaroAutomation/lab-tasks --label BUILDER --state open` — load your task queue
 2. Pick the lowest open stage or highest priority issue
 
 ### During session
