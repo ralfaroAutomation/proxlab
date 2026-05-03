@@ -345,22 +345,24 @@ All VMs/LXCs on <proxmox-host> use IDs starting with 222xx:
 - [ ] Boot each, load VirtIO driver from D:\amd64\w11 during setup, set static IPs 10.10.3.10–12
 - [ ] Domain-join each: `Add-Computer -DomainName corp.lab -OUPath 'OU=Endpoints,DC=corp,DC=lab'`
 
-### 9.2 LX-01 (Ubuntu 24.04, clone 22200 → 22214)
+### 9.2 LX-01 (Ubuntu 24.04, clone 22200 → 22216) ✅ DONE
 
-- [ ] ```bash
-  qm clone 22200 22214 --name LX-01 --full 1 --storage vms-512gb
-  qm set 22214 --memory 1024 --balloon 0 --cores 1 --cpu host --net0 virtio,bridge=vmbr1,tag=300,firewall=0
-  qm set 22214 --ipconfig0 ip=10.10.3.20/24,gw=10.10.3.1 --nameserver 10.10.1.10 --searchdomain corp.lab
-  qm set 22214 --onboot 1 --agent enabled=1; qm cloudinit update 22214; qm start 22214
-  ```
-- [ ] AD-join via realmd: `sudo realm join --user=Administrator corp.lab`
+- [x] Cloned from `ubuntu-2404-tmpl` (22200) → VM 22216, dual NIC: vmbr1 VLAN300 + vmbr0 mgmt
+- [x] Cloud-init: ciuser=ubuntu, vendor snippet installs sssd/realmd/adcli/samba-common-bin
+- [x] Netplan: eth0 DNS → DC-01/DC-02 (10.10.1.10/11), route 10.10.0.0/16 via 10.10.3.1 (RT-01)
+- [x] AD-joined via realmd: `echo '<pass>' | sudo realm join --user=Administrator corp.lab`
+- [x] pam_mkhomedir enabled; `id administrator@corp.lab` resolves ✅
 
-### 9.3 LX-02 (Debian 12, from ISO — 22215)
+### 9.3 LX-02 (Debian 13 genericcloud → 22217) ✅ DONE
 
-- [ ] Download Debian 12 netinst to ISO storage if not present, create VM with VLAN 300, install manually, IP 10.10.3.21
-- [ ] AD-join via realmd (same as LX-01)
+- [x] Deployed from Debian 13 genericcloud image → VM 22217, same dual-NIC layout as LX-01
+- [x] Extra packages required: `apt install -y sssd-tools libnss-sss libpam-sss`
+- [x] Debian-specific: `sudo realm join --install=/ --user=Administrator corp.lab` (no PackageKit)
+- [x] sssd started manually after join (`systemctl start sssd`); auto-starts on subsequent boots
+- [x] AD-joined, `id administrator@corp.lab` resolves ✅
+- See `journey/08-linux-endpoints.md` for full blockers/fixes
 
-### 9.4 ATK-01 (Kali Linux, from ISO — 22216)
+### 9.4 ATK-01 (Kali Linux, from ISO — 22218)
 
 - [ ] Download Kali ISO to ISO storage, create VM with VLAN 300, install with static IP 10.10.3.30 — no AD join
 - [ ] Copy claude-lxc SSH pubkey to ATK-01 for remote ops
